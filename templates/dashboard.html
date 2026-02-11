@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Server Console</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #00ff00;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #222;
+            padding: 15px;
+            border-bottom: 2px solid #00ff00;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 20px;
+            color: #00ff00;
+        }
+        
+        .header .status {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff0000;
+        }
+        
+        .status-dot.connected {
+            background: #00ff00;
+        }
+        
+        .logout-btn {
+            background: #d32f2f;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+        }
+        
+        .logout-btn:hover {
+            background: #ff1744;
+        }
+        
+        .console {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: #1e1e1e;
+            border: 1px solid #333;
+            margin: 10px;
+            border-radius: 3px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .console-line {
+            margin: 2px 0;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        
+        .log-error {
+            color: #ff6b6b;
+        }
+        
+        .log-warning {
+            color: #ffaa00;
+        }
+        
+        .log-info {
+            color: #00ff00;
+        }
+        
+        .log-debug {
+            color: #888;
+        }
+        
+        .footer {
+            background: #222;
+            padding: 10px;
+            border-top: 2px solid #00ff00;
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #ffaa00;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🖥️ Minecraft Server Console</h1>
+        <div class="status">
+            <div class="status-indicator">
+                <span>Status:</span>
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Verbindung wird hergestellt...</span>
+            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+    
+    <div class="console" id="console">
+        <div class="loading">⏳ Verbindung wird hergestellt...</div>
+    </div>
+    
+    <div class="footer">
+        <p>📌 Read-Only Modus - Keine Befehle möglich | Logs werden aktualisiert</p>
+    </div>
+
+    <script>
+        const console_element = document.getElementById('console');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        let lastLogCount = 0;
+
+        async function connectToServer() {
+            try {
+                const response = await fetch('/api/connect', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusDot.classList.add('connected');
+                    statusText.textContent = 'Verbunden ✓';
+                    startPolling();
+                } else {
+                    statusText.textContent = 'Verbindung fehlgeschlagen';
+                    setTimeout(connectToServer, 3000);
+                }
+            } catch (error) {
+                statusText.textContent = 'Fehler beim Verbinden';
+                setTimeout(connectToServer, 3000);
+            }
+        }
+
+        async function getLogs() {
+            try {
+                const response = await fetch('/api/logs');
+                const data = await response.json();
+                
+                if (data.logs.length > lastLogCount) {
+                    console_element.innerHTML = '';
+                    data.logs.forEach(log => {
+                        const line = document.createElement('div');
+                        line.className = 'console-line';
+                        
+                        // Farbcodierung für verschiedene Log-Typen
+                        if (log.includes('[ERROR]') || log.includes('ERROR')) {
+                            line.classList.add('log-error');
+                        } else if (log.includes('[WARN]') || log.includes('WARNING')) {
+                            line.classList.add('log-warning');
+                        } else if (log.includes('[INFO]')) {
+                            line.classList.add('log-info');
+                        } else if (log.includes('[DEBUG]')) {
+                            line.classList.add('log-debug');
+                        }
+                        
+                        line.textContent = log;
+                        console_element.appendChild(line);
+                    });
+                    
+                    // Zum Ende scrollen
+                    console_element.scrollTop = console_element.scrollHeight;
+                    lastLogCount = data.logs.length;
+                }
+            } catch (error) {
+                console.error('Fehler beim Abrufen der Logs:', error);
+            }
+        }
+
+        function startPolling() {
+            // Logs alle 500ms abrufen
+            setInterval(getLogs, 500);
+        }
+
+        function logout() {
+            if (confirm('Wirklich abmelden?')) {
+                window.location.href = '/';
+            }
+        }
+
+        // Beim Laden starten
+        connectToServer();
+    </script>
+</body>
+</html>
